@@ -15,7 +15,7 @@ Fast extraction from JSON strings. For a small number of values extracted from a
 (get-in-json json-string keys not-found)
 ```
 
-`get-in-json` is analogous to get-in, but extracts a substring from a JSON in string form. `keys` are indices, keywords or strings.
+`get-in-json` is analogous to `clojure.core/get-in`, but extracts a substring from a JSON in string form. `keys` are indices, keywords or strings.
 
 ```clojure
 (get-tree-in-json json-string key-tree)
