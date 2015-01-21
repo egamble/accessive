@@ -26,7 +26,7 @@ Fast extraction from JSON strings. For a small number of values extracted from a
 
 A program using `get-tree-in-json` should probably call `shutdown-agents` before exiting to avoid a long timeout.
 
-### Updates:
+### History
 
 #### Version 1.0.0:
 
