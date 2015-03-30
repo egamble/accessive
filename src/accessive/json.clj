@@ -2,7 +2,8 @@
   "Fast extraction from JSON strings."
 
   (:require [clojure.string :as s]
-            ;; [criterium.core :refer [quick-bench]]
+            [potemkin :refer [def-map-type]]
+            ;; [criterium.core :refer :all]
             ))
 
 
@@ -202,6 +203,22 @@
         (if (neg? i)
           not-found
           (recur (long (ws i)) (rest ks)))))))
+
+
+(def-map-type ParallelMap [m]
+  (get [_ k default-value]
+    (if (contains? m k)
+      (let [v (get m k)]
+        (if (future? v)
+          @v
+          v))
+      default-value))
+  (assoc [_ k v]
+    (ParallelMap. (assoc m k v)))
+  (dissoc [_ k]
+     (ParallelMap. (dissoc m k)))
+  (keys [_]
+    (keys m)))
 
 
 (defn get-tree-in-json*
