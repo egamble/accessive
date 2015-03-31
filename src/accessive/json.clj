@@ -3,6 +3,7 @@
 
   (:require [clojure.string :as s]
             [potemkin :refer [def-map-type]]
+            [let-else :refer [let?]]
             ;; [criterium.core :refer :all]
             ))
 
@@ -239,28 +240,34 @@
       (into {} (map f subtrees)))))
 
 
-(defn get-tree-in-json-lazy*
+(defn get-nth-or-val-for-keys-in-json-lazy
+  [^chars cs i-future ks]
+  (if-let [k (first ks)]
+    nil
+    nil))
+
+
+#_(defn get-tree-in-json-lazy*
   "Starts at the first non-ws char."
-  [^chars cs ^long i ks i-future subtrees read-fn]
+  [^chars cs ^long i-start i-future ks subtrees read-fn]
   (let [f (fn [[k subtree]]
             (let [subsubtrees (seq subtree)]
               (if (second subsubtrees)
                 (let [i-future
-                      (future (get-nth-or-val-for-key-in-json-lazy cs key-cons-or-future k))])
-                )
-              (let [i (get-nth-or-val-for-key-in-json cs i k)])
-              [k (when-not (neg? i)
-                   (get-tree-in-json* cs i subsubtrees read-fn))]))
-        ]
+                      (if i-future
+                        (future (get-nth-or-val-for-keys-in-json-lazy cs i-future (cons k ks)))
+                        (future (get-nth-or-val-for-key-in-json cs i-start k)))]
+                  [k (get-tree-in-json-lazy* cs 0 i-future nil subsubtrees read-fn)])
+                [k (get-tree-in-json-lazy* cs i-start i-future (cons k ks) subsubtrees read-fn)])))]
 
     (if (nil? subtrees)
-      (let [i (if i-future
-                @i-future
-                (if (seq ks)
-                   (get-nth-or-val-for-keys-in-json cs i ks)
-                   i))
-            end (get-json-end cs i)]
-        (when-not (neg? end)
+      (future
+        (let? [i (if i-future
+                  (get-nth-or-val-for-key-in-json-lazy cs i-future ks)
+                  i-start)
+               :is-not neg?
+               end (get-json-end cs i)
+               :is-not neg?]
           (read-fn
            (String. (java.util.Arrays/copyOfRange cs i end)))))
       (into {} (map f subtrees)))))
