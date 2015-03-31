@@ -245,10 +245,8 @@
   (let [f (fn [[k subtree]]
             (let [subsubtrees (seq subtree)]
               (if (second subsubtrees)
-                (let [key-cons-or-future
-                      (if (second subsubtrees)
-                        (future (get-nth-or-val-for-key-in-json-lazy cs key-cons-or-future k))
-                        (cons k ))])
+                (let [i-future
+                      (future (get-nth-or-val-for-key-in-json-lazy cs key-cons-or-future k))])
                 )
               (let [i (get-nth-or-val-for-key-in-json cs i k)])
               [k (when-not (neg? i)
