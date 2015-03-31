@@ -229,18 +229,43 @@
               [k (when-not (neg? i)
                    (get-tree-in-json* cs i subtree read-fn))]))
 
-        trees (seq tree)]
+        subtrees (seq tree)]
 
-    (if (nil? trees)
+    (if (nil? subtrees)
       (let [end (get-json-end cs i)]
         (when-not (neg? end)
           (read-fn
            (String. (java.util.Arrays/copyOfRange cs i end)))))
+      (into {} (map f subtrees)))))
 
-      (into {}
-            (if (second trees)
-              (pmap f trees)
-              [(f (first trees))])))))
+
+(defn get-tree-in-json-lazy*
+  "Starts at the first non-ws char."
+  [^chars cs ^long i ks i-future subtrees read-fn]
+  (let [f (fn [[k subtree]]
+            (let [subsubtrees (seq subtree)]
+              (if (second subsubtrees)
+                (let [key-cons-or-future
+                      (if (second subsubtrees)
+                        (future (get-nth-or-val-for-key-in-json-lazy cs key-cons-or-future k))
+                        (cons k ))])
+                )
+              (let [i (get-nth-or-val-for-key-in-json cs i k)])
+              [k (when-not (neg? i)
+                   (get-tree-in-json* cs i subsubtrees read-fn))]))
+        ]
+
+    (if (nil? subtrees)
+      (let [i (if i-future
+                @i-future
+                (if (seq ks)
+                   (get-nth-or-val-for-keys-in-json cs i ks)
+                   i))
+            end (get-json-end cs i)]
+        (when-not (neg? end)
+          (read-fn
+           (String. (java.util.Arrays/copyOfRange cs i end)))))
+      (into {} (map f subtrees)))))
 
 
 (defn get-in-json
