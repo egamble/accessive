@@ -24,10 +24,19 @@ Fast extraction from JSON strings. For a small number of values extracted from a
 
 `get-tree-in-json` extracts multiple substrings simultaneously from a JSON in string form. `key-tree` is a map of keys, whose values are maps of keys, etc., with nils or empty maps at the leaves. The keys are indices, keywords or strings. `read-fn` is a fn to apply to each extracted string, e.g. `read-string` or `json/parse-string`. `read-fn` defaults to `identity`.
 
-A program using `get-tree-in-json` should probably call `shutdown-agents` before exiting to avoid a long timeout.
+`get-tree-in-json-lazy` has almost the same behavior as get-tree-in-json, but returns the tree of results immediately. Values in the tree are futures that are dereferenced automatically upon access. This potentially allows quicker access to some values extracted from very large JSONs.
+
+Unlike `get-tree-in-json`, `get-tree-in-json-lazy` doesn't return an incomplete tree when keys are not found in the JSON.
+
+A program using `get-tree-in-json-lazy` should probably call `shutdown-agents` before exiting to avoid a long timeout.
 
 ### History
+
+#### Version 1.0.1:
+
+Added `get-tree-in-json-lazy`.
 
 #### Version 1.0.0:
 
 Initial version.
+
