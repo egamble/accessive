@@ -129,7 +129,7 @@
     ))
 
 
-(defn get-nth-in-json
+(defn get-nth
   "Starts at the opening char, but we're not certain that it is [."
   ^long [^chars cs ^long i ^long n]
   (if (= (cget i) \[)        ; there should be a [
@@ -144,7 +144,7 @@
     -1))
 
 
-(defn get-val-for-key-in-json
+(defn get-val-for-key
   "Starts at the opening char, but we're not certain that it is {.
   k is a byte array to compare to map keys."
   ^long [^chars cs ^long i ^chars k]
@@ -166,17 +166,17 @@
       -1)))
 
 
-(defmacro get-nth-or-val-for-key-in-json
+(defmacro get-nth-or-val-for-key
   [cs i k]
   `(let [val-for-key#
         (fn [s#]
           (->> (s/escape s# {\" "\\\"" \\ "\\\\"})
                (.toCharArray)
-               (get-val-for-key-in-json ~cs ~i)))]
+               (get-val-for-key ~cs ~i)))]
     (long
      (cond
       (and (integer? ~k) (not (neg? ~k)))
-      (get-nth-in-json ~cs ~i ~k)
+      (get-nth ~cs ~i ~k)
 
       (string? ~k)
       (val-for-key# ~k)
@@ -200,33 +200,27 @@
           (String. (java.util.Arrays/copyOfRange cs i end))))
 
       (let [k (first ks)
-            i (get-nth-or-val-for-key-in-json cs i k)]
+            i (get-nth-or-val-for-key cs i k)]
         (if (neg? i)
           not-found
           (recur (long (ws i)) (rest ks)))))))
 
 
-(def-map-type ParallelMap [m]
-  (get [_ k default-value]
-    (if (contains? m k)
-      (let [v (get m k)]
-        (if (future? v)
-          @v
-          v))
-      default-value))
-  (assoc [_ k v]
-    (ParallelMap. (assoc m k v)))
-  (dissoc [_ k]
-     (ParallelMap. (dissoc m k)))
-  (keys [_]
-    (keys m)))
+(defn get-in-json
+  "Analogous to get-in, but extracts a substring from a JSON in string form.
+  Keys are indices, keywords or strings."
+  ([json-str ks] (get-in-json json-str ks nil))
+
+  ([^String json-str ks not-found]
+     (let [cs (.toCharArray json-str)]
+       (get-in-json* cs (ws 0) ks not-found))))
 
 
 (defn get-tree-in-json*
   "Starts at the first non-ws char."
   [^chars cs ^long i tree read-fn]
   (let [f (fn [[k subtree]]
-            (let [i (get-nth-or-val-for-key-in-json cs i k)]
+            (let [i (get-nth-or-val-for-key cs i k)]
               [k (when-not (neg? i)
                    (get-tree-in-json* cs i subtree read-fn))]))
 
@@ -238,49 +232,6 @@
           (read-fn
            (String. (java.util.Arrays/copyOfRange cs i end)))))
       (into {} (map f subtrees)))))
-
-
-(defn get-nth-or-val-for-keys-in-json-lazy
-  [^chars cs i-future ks]
-  (if-let [k (first ks)]
-    nil
-    nil))
-
-
-#_(defn get-tree-in-json-lazy*
-  "Starts at the first non-ws char."
-  [^chars cs ^long i-start i-future ks subtrees read-fn]
-  (let [f (fn [[k subtree]]
-            (let [subsubtrees (seq subtree)]
-              (if (second subsubtrees)
-                (let [i-future
-                      (if i-future
-                        (future (get-nth-or-val-for-keys-in-json-lazy cs i-future (cons k ks)))
-                        (future (get-nth-or-val-for-key-in-json cs i-start k)))]
-                  [k (get-tree-in-json-lazy* cs 0 i-future nil subsubtrees read-fn)])
-                [k (get-tree-in-json-lazy* cs i-start i-future (cons k ks) subsubtrees read-fn)])))]
-
-    (if (nil? subtrees)
-      (future
-        (let? [i (if i-future
-                  (get-nth-or-val-for-key-in-json-lazy cs i-future ks)
-                  i-start)
-               :is-not neg?
-               end (get-json-end cs i)
-               :is-not neg?]
-          (read-fn
-           (String. (java.util.Arrays/copyOfRange cs i end)))))
-      (into {} (map f subtrees)))))
-
-
-(defn get-in-json
-  "Analogous to get-in, but extracts a substring from a JSON in string form.
-  Keys are indices, keywords or strings."
-  ([json-str ks] (get-in-json json-str ks nil))
-
-  ([^String json-str ks not-found]
-     (let [cs (.toCharArray json-str)]
-       (get-in-json* cs (ws 0) ks not-found))))
 
 
 (defn get-tree-in-json
@@ -300,3 +251,70 @@
   ([^String json-str tree read-fn]
      (let [cs (.toCharArray json-str)]
        (get-tree-in-json* cs (ws 0) tree read-fn))))
+
+
+(def-map-type ParallelMap [m]
+  (get [_ k default-value]
+    (if (contains? m k)
+      (let [v (get m k)]
+        (if (future? v)
+          @v
+          v))
+      default-value))
+  (assoc [_ k v]
+    (ParallelMap. (assoc m k v)))
+  (dissoc [_ k]
+     (ParallelMap. (dissoc m k)))
+  (keys [_]
+    (keys m)))
+
+
+(defn get-i-from-future-and-keys
+  ^long [^chars cs i-future ks]
+  (let [i @i-future]
+    (if (neg? i)
+      i
+      (reduce (fn [i k]
+                (get-nth-or-val-for-key cs i k))
+              i
+              ks))))
+
+
+(defn get-tree-in-json-lazy*
+  "Starts at the first non-ws char."
+  [^chars cs [^long i i-future ks] subtrees read-fn]
+  (let [f (fn [[k subtree]]
+            (let [subsubtrees (seq subtree)]
+              (if (second subsubtrees)
+                (let [i-future
+                      (if i-future
+                        (future (get-i-from-future-and-keys cs i-future (cons k ks)))
+                        (future (get-nth-or-val-for-key cs i k)))]
+                  [k (get-tree-in-json-lazy* cs [0 i-future nil] subsubtrees read-fn)])
+                [k (get-tree-in-json-lazy* cs [i i-future (cons k ks)] subsubtrees read-fn)])))]
+
+    (if (nil? subtrees)
+      (future
+        (let? [^long i (if i-future
+                         (get-i-from-future-and-keys cs i-future ks)
+                         i)
+               :is-not neg?
+               end (get-json-end cs i)
+               :is-not neg?]
+          (read-fn
+           (String. (java.util.Arrays/copyOfRange cs i end)))))
+      (ParallelMap. (into {} (map f subtrees))))))
+
+
+(defn get-tree-in-json-lazy
+  "Same behavior as get-tree-in-json, but returns the tree of results
+  immediately. Values in the tree are futures that are dereferenced
+  automatically upon access.
+  Potentially allows quicker access to some values extracted from
+  very large JSONs."
+  ([json-str tree]
+     (get-tree-in-json-lazy json-str tree identity))
+
+  ([^String json-str tree read-fn]
+     (let [cs (.toCharArray json-str)]
+       (get-tree-in-json-lazy* cs [(ws 0) nil nil] (seq tree) read-fn))))
