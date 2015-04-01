@@ -285,10 +285,7 @@
   Unlike get-tree-in-json*, (seq tree) -> kv-pairs must be done by the caller of this fn,
   to avoid calling seq twice on the same tree.
 
-  i and i-future could share the same argument, but then i wouldn't be type-hinted.
-
-  A program using this fn should probably call shutdown-agents before
-  exiting to avoid a long timeout."
+  i and i-future could share the same argument, but then i wouldn't be type-hinted."
   [^chars cs [^long i i-future ks] kv-pairs read-fn]
   (let [f (fn [[k v]]
             (let [kv-pairs-2 (seq v)]
@@ -325,7 +322,10 @@
   quicker access to some values extracted from very large JSONs.
 
   Unlike get-tree-in-json, parse errors never return an incomplete
-  tree."
+  tree.
+
+  A program using this fn should probably call shutdown-agents before
+  exiting to avoid a long timeout."
   ([json-str tree]
      (get-tree-in-json-lazy json-str tree identity))
 
