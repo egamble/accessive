@@ -241,10 +241,7 @@
   nils or empty maps at the leaves.
 
   read-fn is a fn to apply to each extracted string, e.g. read-string or
-  json/parse-string. read-fn defaults to identity.
-
-  A program using this fn should probably call shutdown-agents before
-  exiting to avoid a long timeout."
+  json/parse-string. read-fn defaults to identity."
   ([json-str tree]
      (get-tree-in-json json-str tree identity))
 
@@ -288,7 +285,10 @@
   Unlike get-tree-in-json*, (seq tree) -> kv-pairs must be done by the caller of this fn,
   to avoid calling seq twice on the same tree.
 
-  i and i-future could share the same argument, but then i wouldn't be type-hinted."
+  i and i-future could share the same argument, but then i wouldn't be type-hinted.
+
+  A program using this fn should probably call shutdown-agents before
+  exiting to avoid a long timeout."
   [^chars cs [^long i i-future ks] kv-pairs read-fn]
   (let [f (fn [[k v]]
             (let [kv-pairs-2 (seq v)]
