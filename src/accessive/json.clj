@@ -292,6 +292,7 @@
   [^chars cs [^long i i-future ks] kv-pairs read-fn]
   (let [f (fn [[k v]]
             (let [kv-pairs-2 (seq v)]
+              ;; only make a future if there is more than one subtree
               (if (second kv-pairs-2)
                 (let [i-future-2
                       (if i-future
