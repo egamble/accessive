@@ -189,7 +189,7 @@
 
 
 (defn get-in-json*
-  "Starts at the first non-ws char."
+  "i starts at the first non-ws char."
   [^chars cs ^long i ks not-found]
   (loop [i i
          ks ks]
@@ -217,21 +217,21 @@
 
 
 (defn get-tree-in-json*
-  "Starts at the first non-ws char."
+  "i starts at the first non-ws char."
   [^chars cs ^long i tree read-fn]
-  (let [f (fn [[k subtree]]
+  (let [f (fn [[k v]]
             (let [i (get-nth-or-val-for-key cs i k)]
               [k (when-not (neg? i)
-                   (get-tree-in-json* cs i subtree read-fn))]))
+                   (get-tree-in-json* cs i v read-fn))]))
 
-        subtrees (seq tree)]
+        kv-pairs (seq tree)]
 
-    (if (nil? subtrees)
+    (if (nil? kv-pairs)
       (let [end (get-json-end cs i)]
         (when-not (neg? end)
           (read-fn
            (String. (java.util.Arrays/copyOfRange cs i end)))))
-      (into {} (map f subtrees)))))
+      (into {} (map f kv-pairs)))))
 
 
 (defn get-tree-in-json
@@ -269,52 +269,66 @@
     (keys m)))
 
 
-(defn get-i-from-future-and-keys
-  ^long [^chars cs i-future ks]
-  (let [i @i-future]
-    (if (neg? i)
-      i
-      (reduce (fn [i k]
-                (get-nth-or-val-for-key cs i k))
-              i
-              ks))))
+(defn get-index-from-keys
+  ^long [^chars cs ^long i i-future ks]
+  (let [^long i (if i-future
+                  @i-future
+                  i)]
+    (reduce (fn [i k]
+              (if (neg? i)
+                (reduced i)
+                (get-nth-or-val-for-key cs i k)))
+            i
+            ks)))
 
 
 (defn get-tree-in-json-lazy*
-  "Starts at the first non-ws char."
-  [^chars cs [^long i i-future ks] subtrees read-fn]
-  (let [f (fn [[k subtree]]
-            (let [subsubtrees (seq subtree)]
-              (if (second subsubtrees)
-                (let [i-future
-                      (if i-future
-                        (future (get-i-from-future-and-keys cs i-future (cons k ks)))
-                        (future (get-nth-or-val-for-key cs i k)))]
-                  [k (get-tree-in-json-lazy* cs [0 i-future nil] subsubtrees read-fn)])
-                [k (get-tree-in-json-lazy* cs [i i-future (cons k ks)] subsubtrees read-fn)])))]
+  "i starts at the first non-ws char.
 
-    (if (nil? subtrees)
+  Unlike get-tree-in-json*, (seq tree) -> kv-pairs must be done by the caller of this fn,
+  to avoid calling seq twice on the same tree.
+
+  i and i-future could share the same argument, but then i wouldn't be type-hinted."
+  [^chars cs [^long i i-future ks] kv-pairs read-fn]
+  (let [f (fn [[k v]]
+            (let [kv-pairs-2 (seq v)]
+              (if (second kv-pairs-2)
+                (let [i-future-2
+                      (if i-future
+                        (future
+                          (get-index-from-keys cs i i-future (conj ks k)))
+                        (future
+                          (get-nth-or-val-for-key cs i k)))]
+                  [k
+                   ;; [] instead of nil for ks, so we don't have to reverse later
+                   (get-tree-in-json-lazy* cs [0 i-future-2 []] kv-pairs-2 read-fn)])
+                [k
+                 (get-tree-in-json-lazy* cs [i i-future (conj ks k)] kv-pairs-2 read-fn)])))]
+
+    (if (nil? kv-pairs)
       (future
-        (let? [^long i (if i-future
-                         (get-i-from-future-and-keys cs i-future ks)
-                         i)
+        (let? [i (get-index-from-keys cs i i-future ks)
                :is-not neg?
                end (get-json-end cs i)
                :is-not neg?]
           (read-fn
            (String. (java.util.Arrays/copyOfRange cs i end)))))
-      (ParallelMap. (into {} (map f subtrees))))))
+
+      (ParallelMap. (into {} (map f kv-pairs))))))
 
 
 (defn get-tree-in-json-lazy
-  "Same behavior as get-tree-in-json, but returns the tree of results
-  immediately. Values in the tree are futures that are dereferenced
-  automatically upon access.
-  Potentially allows quicker access to some values extracted from
-  very large JSONs."
+  "Almost the same behavior as get-tree-in-json, but returns the tree
+  of results immediately. Values in the tree are futures that are
+  dereferenced automatically upon access. This potentially allows
+  quicker access to some values extracted from very large JSONs.
+
+  Unlike get-tree-in-json, parse errors never return an incomplete
+  tree."
   ([json-str tree]
      (get-tree-in-json-lazy json-str tree identity))
 
   ([^String json-str tree read-fn]
      (let [cs (.toCharArray json-str)]
-       (get-tree-in-json-lazy* cs [(ws 0) nil nil] (seq tree) read-fn))))
+       ;; [] instead of nil for ks, so we don't have to reverse later
+       (get-tree-in-json-lazy* cs [(ws 0) nil []] (seq tree) read-fn))))
