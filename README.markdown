@@ -27,21 +27,23 @@ Fast extraction from JSON strings. For a small number of values extracted from a
 Extracted strings are returned as the leaves of a tree of maps with the same structure as `key-tree`, except that subtrees are omitted when their keys are not found in the JSON.
 
 ```clojure
-(get-tree-in-json-lazy json-string key-tree)
-(get-tree-in-json-lazy json-string key-tree read-fn)
+(get-lazy-tree-in-json json-string key-tree)
+(get-lazy-tree-in-json json-string key-tree read-fn)
+(get-futures-tree-in-json json-string key-tree)
+(get-futures-tree-in-json json-string key-tree read-fn)
 ```
 
-`get-tree-in-json-lazy` has almost the same behavior as `get-tree-in-json`, but returns the tree of results immediately. Values in the tree are futures that are dereferenced automatically upon access. This potentially allows quicker access to some values extracted from very large JSONs.
+`get-lazy-tree-in-json` and `get-futures-tree-in-json` have almost the same behavior as `get-tree-in-json`, but return the tree of results immediately. Values in the tree are delays (for `get-lazy-tree-in-json`) or futures that are dereferenced automatically upon access. This potentially allows quicker access to some values extracted from very large JSONs.
 
-Unlike `get-tree-in-json`, `get-tree-in-json-lazy` doesn't return an incomplete tree when keys are not found in the JSON.
+Unlike `get-tree-in-json`, `get-lazy-tree-in-json` and `get-futures-tree-in-json` don't return an incomplete tree when keys are not found in the JSON.
 
-A program using `get-tree-in-json-lazy` should probably call `shutdown-agents` before exiting to avoid a long timeout.
+A program using `get-futures-tree-in-json` should probably call `shutdown-agents` before exiting to avoid a long timeout.
 
 ### History
 
 #### Version 1.0.1:
 
-Added `get-tree-in-json-lazy`.
+Added `get-lazy-tree-in-json` and `get-futures-tree-in-json`.
 
 #### Version 1.0.0:
 

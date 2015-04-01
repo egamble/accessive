@@ -4,7 +4,7 @@
   (:require [clojure.string :as s]
             [potemkin :refer [def-map-type]]
             [let-else :refer [let?]]
-            ;; [criterium.core :refer :all]
+            [criterium.core :refer :all]
             ))
 
 
@@ -250,7 +250,64 @@
        (get-tree-in-json* cs (ws 0) tree read-fn))))
 
 
-(def-map-type ParallelMap [m]
+(def-map-type LazyMap [m]
+  (get [_ k default-value]
+    (if (contains? m k)
+      (let [v (get m k)]
+        (if (instance? clojure.lang.Delay v)
+          @v
+          v))
+      default-value))
+  (assoc [_ k v]
+    (LazyMap. (assoc m k v)))
+  (dissoc [_ k]
+     (LazyMap. (dissoc m k)))
+  (keys [_]
+    (keys m)))
+
+
+(defn get-lazy-tree-in-json*
+  "i starts at the first non-ws char."
+  [^chars cs i-delay tree read-fn]
+  (let [f (fn [[k v]]
+            (let [i-delay-2
+                  (delay
+                   (let? [^long i @i-delay
+                          :is-not neg? :else i]
+                     (get-nth-or-val-for-key cs i k)))]
+              [k (get-lazy-tree-in-json* cs i-delay-2 v read-fn)]))
+
+        kv-pairs (seq tree)]
+
+    (if (nil? kv-pairs)
+      (delay
+        (let? [^long i @i-delay
+               :is-not neg?
+               end (get-json-end cs i)
+               :is-not neg?]
+          (read-fn
+           (String. (java.util.Arrays/copyOfRange cs i end)))))
+
+      (LazyMap. (into {} (map f kv-pairs))))))
+
+
+(defn get-lazy-tree-in-json
+  "Almost the same behavior as get-tree-in-json, but returns the tree
+  of results immediately. Values in the tree are delays that are
+  dereferenced automatically upon access. This potentially allows
+  quicker access to some values extracted from very large JSONs.
+
+  Unlike get-tree-in-json, parse errors never return an incomplete
+  tree."
+  ([json-str tree]
+     (get-lazy-tree-in-json json-str tree identity))
+
+  ([^String json-str tree read-fn]
+     (let [cs (.toCharArray json-str)]
+       (get-lazy-tree-in-json* cs (delay (ws 0)) tree read-fn))))
+
+
+(def-map-type FuturesMap [m]
   (get [_ k default-value]
     (if (contains? m k)
       (let [v (get m k)]
@@ -259,27 +316,24 @@
           v))
       default-value))
   (assoc [_ k v]
-    (ParallelMap. (assoc m k v)))
+    (FuturesMap. (assoc m k v)))
   (dissoc [_ k]
-     (ParallelMap. (dissoc m k)))
+     (FuturesMap. (dissoc m k)))
   (keys [_]
     (keys m)))
 
 
 (defn get-index-from-keys
-  ^long [^chars cs ^long i i-future ks]
-  (let [^long i (if i-future
-                  @i-future
-                  i)]
-    (reduce (fn [i k]
-              (if (neg? i)
-                (reduced i)
-                (get-nth-or-val-for-key cs i k)))
-            i
-            ks)))
+  ^long [^chars cs ^long i ks]
+  (reduce (fn [i k]
+            (if (neg? i)
+              (reduced i)
+              (get-nth-or-val-for-key cs i k)))
+          i
+          ks))
 
 
-(defn get-tree-in-json-lazy*
+(defn get-futures-tree-in-json*
   "i starts at the first non-ws char.
 
   Unlike get-tree-in-json*, (seq tree) -> kv-pairs must be done by the caller of this fn,
@@ -292,30 +346,33 @@
               ;; only make a future if there is more than one subtree
               (if (second kv-pairs-2)
                 (let [i-future-2
-                      (if i-future
-                        (future
-                          (get-index-from-keys cs i i-future (conj ks k)))
-                        (future
-                          (get-nth-or-val-for-key cs i k)))]
+                      (future
+                        (get-index-from-keys
+                         cs
+                         (if i-future @i-future i)
+                         (conj ks k)))]
                   [k
                    ;; [] instead of nil for ks, so we don't have to reverse later
-                   (get-tree-in-json-lazy* cs [0 i-future-2 []] kv-pairs-2 read-fn)])
+                   (get-futures-tree-in-json* cs [0 i-future-2 []] kv-pairs-2 read-fn)])
                 [k
-                 (get-tree-in-json-lazy* cs [i i-future (conj ks k)] kv-pairs-2 read-fn)])))]
+                 (get-futures-tree-in-json* cs [i i-future (conj ks k)] kv-pairs-2 read-fn)])))]
 
     (if (nil? kv-pairs)
       (future
-        (let? [i (get-index-from-keys cs i i-future ks)
+        (let? [i (get-index-from-keys
+                  cs
+                  (if i-future @i-future i)
+                  ks)
                :is-not neg?
                end (get-json-end cs i)
                :is-not neg?]
           (read-fn
            (String. (java.util.Arrays/copyOfRange cs i end)))))
 
-      (ParallelMap. (into {} (map f kv-pairs))))))
+      (FuturesMap. (into {} (map f kv-pairs))))))
 
 
-(defn get-tree-in-json-lazy
+(defn get-futures-tree-in-json
   "Almost the same behavior as get-tree-in-json, but returns the tree
   of results immediately. Values in the tree are futures that are
   dereferenced automatically upon access. This potentially allows
@@ -327,9 +384,9 @@
   A program using this fn should probably call shutdown-agents before
   exiting to avoid a long timeout."
   ([json-str tree]
-     (get-tree-in-json-lazy json-str tree identity))
+     (get-futures-tree-in-json json-str tree identity))
 
   ([^String json-str tree read-fn]
      (let [cs (.toCharArray json-str)]
        ;; [] instead of nil for ks, so we don't have to reverse later
-       (get-tree-in-json-lazy* cs [(ws 0) nil []] (seq tree) read-fn))))
+       (get-futures-tree-in-json* cs [(ws 0) nil []] (seq tree) read-fn))))
