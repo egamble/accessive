@@ -24,7 +24,14 @@ Fast extraction from JSON strings. For a small number of values extracted from a
 
 `get-tree-in-json` extracts multiple substrings simultaneously from a JSON in string form. `key-tree` is a map of keys, whose values are maps of keys, etc., with nils or empty maps at the leaves. The keys are indices, keywords or strings. `read-fn` is a fn to apply to each extracted string, e.g. `read-string` or `json/parse-string`. `read-fn` defaults to `identity`.
 
-`get-tree-in-json-lazy` has almost the same behavior as get-tree-in-json, but returns the tree of results immediately. Values in the tree are futures that are dereferenced automatically upon access. This potentially allows quicker access to some values extracted from very large JSONs.
+Extracted strings are returned as the leaves of a tree of maps with the same structure as `key-tree`, except that subtrees are omitted when their keys are not found in the JSON.
+
+```clojure
+(get-tree-in-json-lazy json-string key-tree)
+(get-tree-in-json-lazy json-string key-tree read-fn)
+```
+
+`get-tree-in-json-lazy` has almost the same behavior as `get-tree-in-json`, but returns the tree of results immediately. Values in the tree are futures that are dereferenced automatically upon access. This potentially allows quicker access to some values extracted from very large JSONs.
 
 Unlike `get-tree-in-json`, `get-tree-in-json-lazy` doesn't return an incomplete tree when keys are not found in the JSON.
 
