@@ -37,6 +37,10 @@ Unlike `get-tree-in-json`, `get-lazy-tree-in-json` doesn't return an incomplete 
 
 ### History
 
+#### Version 1.0.2:
+
+Removed unnecessary instantiation.
+
 #### Version 1.0.1:
 
 Added `get-lazy-tree-in-json`.
