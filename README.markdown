@@ -37,6 +37,10 @@ Unlike `get-tree-in-json`, `get-lazy-tree-in-json` doesn't return an incomplete 
 
 ### History
 
+#### Version 1.0.3:
+
+Fixed whitespace bug introduced in previous version.
+
 #### Version 1.0.2:
 
 Removed unnecessary instantiation.
