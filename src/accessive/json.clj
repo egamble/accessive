@@ -157,7 +157,7 @@
             ;; neg i indicates failed key match
             (if (pos? i)
               (ws i)
-              (recur (ws (get-json-end cs (- i))) ; skip the value
+              (recur (ws (get-json-end cs (ws (- i)))) ; skip the value
                      )))))
       -1)))
 
