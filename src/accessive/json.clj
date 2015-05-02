@@ -18,9 +18,6 @@
 (defn get-json-end ^long [^chars cs ^long i]) ; hinted version of declare
 
 
-(deftype MatchResult [^long idx ^boolean fail?])
-
-
 (defmacro cget*
   [cs i]
   `(char (aget ~cs ~i)))
@@ -83,8 +80,8 @@
   len is the length of k (so we don't have to keep recomputing it).
   Regardless of the success or failure of the comparison,
   always skip to the end of the string.
-  Returns [<index after the string>, <boolean for match success>]."
-  ^MatchResult [^chars cs ^long i ^chars k ^long len]
+  Returns the index after the string, negative if the match failed."
+  ^long [^chars cs ^long i ^chars k ^long len]
   (loop [i (inc i)
          ki 0
          escaped? (boolean false)
@@ -93,8 +90,10 @@
       (if (and (= c \")
                (boolean (not escaped?)))
 
-        (MatchResult. (inc i) (or fail?
-                                  (boolean (not= ki len))))
+        (if (or fail?
+                (boolean (not= ki len)))
+          (- (inc i))
+          (inc i))
 
         (recur (inc i)
                (inc ki)
@@ -153,15 +152,12 @@
       (loop [i (ws (inc i))]
         (if (= (cget i) \}) ; there shouldn't be a }
           -1
-          (let [^MatchResult match
-                (skip-to-string-end-with-compare cs i k len) ; compare and skip the key
-
-                i (ws (.idx match))     ; skip the colon and ws
+          (let [i (skip-to-string-end-with-compare cs i k len) ; compare and skip the key
                 ]
-
-            (if-not (.fail? match)
-              i
-              (recur (ws (get-json-end cs i)) ; skip the value
+            ;; neg i indicates failed key match
+            (if (pos? i)
+              (ws i)
+              (recur (ws (get-json-end cs (- i))) ; skip the value
                      )))))
       -1)))
 
