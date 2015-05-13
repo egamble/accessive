@@ -64,3 +64,12 @@
            (get-tree-in-json test-json-str in-tree read-string)))
     (is (= out-tree
            (get-lazy-tree-in-json test-json-str in-tree read-string)))))
+
+(deftest get-tree-in-json-not-found-test
+  (let [in-tree {:bar {0 nil}}
+        lazy-out-tree {:bar {0 nil}}
+        eager-out-tree {:bar nil}]
+    (is (= eager-out-tree
+           (get-tree-in-json test-json-str in-tree)))
+    (is (= lazy-out-tree
+           (get-lazy-tree-in-json test-json-str in-tree)))))

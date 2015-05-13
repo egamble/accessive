@@ -237,7 +237,9 @@
   nils or empty maps at the leaves.
 
   read-fn is a fn to apply to each extracted string, e.g. read-string or
-  json/parse-string. read-fn defaults to identity."
+  json/parse-string. read-fn defaults to identity.
+
+  Subtrees are omitted when their keys are not found."
   ([json-str tree]
      (get-tree-in-json json-str tree identity))
 
@@ -293,8 +295,8 @@
   dereferenced automatically upon access. This potentially allows
   quicker access to some values extracted from very large JSONs.
 
-  Unlike get-tree-in-json, parse errors never return an incomplete
-  tree."
+  Unlike get-tree-in-json, a complete tree is always returned, even when
+  keys are not found."
   ([json-str tree]
      (get-lazy-tree-in-json json-str tree identity))
 
