@@ -35,6 +35,8 @@ Extracted strings are returned as the leaves of a tree of maps with the same str
 
 Unlike `get-tree-in-json`, `get-lazy-tree-in-json` doesn't return an incomplete tree when keys are not found in the JSON.
 
+The JSON strings passed to these functions are assumed to be in valid JSON format. Optimized for speed, these functions are not designed to fail particularly gracefully on invalid JSON strings, typically throwing an ArrayIndexOutOfBoundsException.
+
 ### History
 
 #### Version 1.0.3:
